@@ -1,16 +1,14 @@
-# Flask Markdown Sync
+# Flask Markdown 同步服务
 
-A minimal Flask app that serves a static editor UI from `public/`, uploads images to an image bed,
-and syncs generated Markdown files into a Git repository. It supports CNB, GitHub, GitLab, and
-other Git providers by combining `GIT_BASE_URL` and `REPO` to form the remote URL automatically.
+这是一个最小化的 Flask 应用，负责从 `public/` 提供静态编辑器界面、将图片上传到图床，并把生成的 Markdown 文件同步到 Git 仓库。支持 CNB、GitHub、GitLab 等平台，通过 `GIT_BASE_URL` 与 `REPO` 自动拼接远程地址。
 
-## Features
-- Static UI served from `public/`.
-- Image upload proxy to a configurable image bed.
-- Markdown sync to a Git repo with auto-commit and push.
-- Auto-loads environment variables from `project/.env`.
+## 功能
+- 从 `public/` 提供静态页面。
+- 图片上传代理到可配置的图床。
+- Markdown 同步到 Git 仓库（自动提交并推送）。
+- 自动读取 `project/.env` 环境变量。
 
-## Run
+## 运行
 ```bash
 cd /workspace/project
 python -m venv .venv
@@ -19,54 +17,50 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server listens on port `3000` by default. Set `PORT` to override.
+默认监听 `3000` 端口，可通过环境变量 `PORT` 覆盖。
 
-## Environment Variables
-Required for Git sync:
-- `REPO` Example: `user/repo`
-- `GIT_USERNAME` Example: `user`
-- `TOKEN` Personal access token or app token
+## 环境变量
+Git 同步所需：
+- `REPO` 示例：`user/repo`
+- `GIT_USERNAME` 示例：`user`
+- `TOKEN` 个人访问令牌或应用令牌
 
-Optional Git settings:
-- `GIT_BASE_URL` Base host for your Git provider. Example values: `https://cnb.cool`,
-  `https://github.com`, `https://gitlab.com`.
-- `REMOTE_URL` Full Git remote URL override. If set, it is used directly and
-  `GIT_BASE_URL` is ignored for cloning. If `GIT_BASE_URL` is not set, it will
-  be derived from `REMOTE_URL`.
-- `GIT_AUTHOR_NAME` Git commit author name. Default: `GIT_USERNAME`.
-- `GIT_AUTHOR_EMAIL` Git commit author email. Default: `${GIT_USERNAME}@users.noreply.cnb.cool`.
-- `MARKDOWN_TARGET_DIR` Target directory inside the repo. Default: `123`.
+Git 可选设置：
+- `GIT_BASE_URL` Git 平台基础地址，例如：`https://cnb.cool`、`https://github.com`、`https://gitlab.com`。
+- `REMOTE_URL` 完整 Git 远程地址覆盖项。设置后将直接使用该值进行克隆，并忽略 `GIT_BASE_URL`。如果未设置 `GIT_BASE_URL`，会从 `REMOTE_URL` 推导。
+- `GIT_AUTHOR_NAME` Git 提交作者名，默认 `GIT_USERNAME`。
+- `GIT_AUTHOR_EMAIL` Git 提交作者邮箱，默认 `${GIT_USERNAME}@users.noreply.cnb.cool`。
+- `MARKDOWN_TARGET_DIR` 仓库内目标目录，默认 `123`。
 
-Image bed:
-- `IMAGE_BED_UPLOAD_URL` Upload endpoint.
-- `IMAGE_BED_PUBLIC_BASE_URL` Public base URL for rendering images.
-- `IMAGE_BED_TOKEN` Bearer token for image bed API.
+图床：
+- `IMAGE_BED_UPLOAD_URL` 上传接口。
+- `IMAGE_BED_PUBLIC_BASE_URL` 公网访问基础地址。
+- `IMAGE_BED_TOKEN` 图床接口 Bearer Token。
 
-## Git URL Behavior
-Clone URL behavior:
-- If `REMOTE_URL` is set, it is used as-is.
-- Otherwise, it is built as `${GIT_BASE_URL}/${REPO}.git`.
+## Git URL 规则
+克隆地址：
+- 如果设置了 `REMOTE_URL`，直接使用。
+- 否则使用 `${GIT_BASE_URL}/${REPO}.git` 自动拼接。
 
-File URL generation behavior after upload:
-- `cnb.cool` and GitLab use `/-/blob/`.
-- GitHub uses `/blob/`.
-- Other hosts fall back to `/blob/`.
+上传后文件 URL 规则：
+- `cnb.cool` 与 GitLab 使用 `/-/blob/`。
+- GitHub 使用 `/blob/`。
+- 其他主机默认使用 `/blob/`。
 
-If your Git host has a different web URL pattern, you can still use this app
-by overriding `REMOTE_URL` and adjusting `GIT_BASE_URL` or the code in `build_file_url()`.
+如果你的 Git 平台 Web URL 规则不同，可以通过覆盖 `REMOTE_URL`，并在 `build_file_url()` 中调整逻辑。
 
-## Pros and Cons
-Pros:
-- Minimal dependencies and easy to deploy.
-- Works with multiple Git providers.
-- No Node.js required.
+## 优缺点
+优点：
+- 依赖少，部署简单。
+- 兼容多个 Git 平台。
+- 不依赖 Node.js。
 
-Cons:
-- Git operations are performed on every upload (clone + commit + push).
-- File URL generation is heuristic for non-standard Git hosts.
+缺点：
+- 每次上传都会执行一次 Git 操作（clone + commit + push）。
+- 对非标准 Git 平台的文件 URL 生成是启发式逻辑。
 
-## Project Structure
-- `app.py` Flask server and API handlers.
-- `public/` Static frontend.
-- `requirements.txt` Python dependencies.
-- `.env` Runtime configuration.
+## 项目结构
+- `app.py` Flask 服务端及 API 处理逻辑。
+- `public/` 前端静态资源。
+- `requirements.txt` Python 依赖。
+- `.env` 运行时配置。
