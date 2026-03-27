@@ -9,25 +9,27 @@ import time
 from urllib.parse import quote, urlparse
 
 import requests
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from flask import Flask, jsonify, request, send_from_directory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+DOTENV_VALUES = dotenv_values(os.path.join(BASE_DIR, ".env"))
 
 
 def env(name, default=None):
-    value = os.environ.get(name)
+    value = DOTENV_VALUES.get(name)
     if value is None or value == "":
-        return default
+        value = os.environ.get(name)
+    if value is None or value == "":
+        return ""
     return value
 
 
-cnb_git_username = env("GIT_USERNAME", "mumuemhaha")
-cnb_repo = env("REPO", "mumuemhaha/test")
-cnb_token = env("TOKEN", "cOB6LW54nY56U168bLhFDmw27pC")
+cnb_git_username = env("GIT_USERNAME")
+cnb_repo = env("REPO")
+cnb_token = env("TOKEN")
 remote_url_override = env("REMOTE_URL")
-git_base_url_env = os.environ.get("GIT_BASE_URL")
+git_base_url_env = env("GIT_BASE_URL")
 if git_base_url_env and git_base_url_env.strip():
     git_base_url = git_base_url_env.rstrip("/")
 elif remote_url_override:
@@ -35,15 +37,17 @@ elif remote_url_override:
     if parsed.scheme and parsed.netloc:
         git_base_url = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
     else:
-        git_base_url = "https://cnb.cool"
+        git_base_url = ""
 else:
-    git_base_url = "https://cnb.cool"
-cnb_git_author_name = env("GIT_AUTHOR_NAME", cnb_git_username)
-cnb_git_author_email = env("GIT_AUTHOR_EMAIL", f"{cnb_git_username}@users.noreply.cnb.cool")
-markdown_target_dir = env("MARKDOWN_TARGET_DIR", "123")
-image_bed_upload_url = env("IMAGE_BED_UPLOAD_URL", "https://image.0ha.top/upload")
-image_bed_public_base_url = env("IMAGE_BED_PUBLIC_BASE_URL", "https://image.0ha.top").rstrip("/")
-image_bed_token = env("IMAGE_BED_TOKEN", "imgbed_kLM2BsoFaqgCYfdd0GYwngAGulAVUBQY")
+    git_base_url = ""
+cnb_git_author_name = cnb_git_username
+cnb_git_author_email = (
+    f"{cnb_git_username}@users.noreply.cnb.cool" if cnb_git_username else ""
+)
+markdown_target_dir = env("MARKDOWN_TARGET_DIR")
+image_bed_upload_url = env("IMAGE_BED_UPLOAD_URL")
+image_bed_public_base_url = env("IMAGE_BED_PUBLIC_BASE_URL").rstrip("/")
+image_bed_token = env("IMAGE_BED_TOKEN")
 
 
 def build_remote_url():
@@ -120,7 +124,7 @@ def normalize_target_dir(input_dir):
             continue
         cleaned.append(segment)
     if not cleaned:
-        return "123"
+        return ""
     return "/".join(cleaned)
 
 
@@ -140,6 +144,16 @@ def ensure_directory_tree(base_dir, relative_dir):
 
 @app.post("/api/upload")
 def api_upload():
+    if not image_bed_upload_url or not image_bed_public_base_url or not image_bed_token:
+        return (
+            jsonify(
+                {
+                    "error": "图床配置缺失",
+                    "details": "需要设置 IMAGE_BED_UPLOAD_URL、IMAGE_BED_PUBLIC_BASE_URL、IMAGE_BED_TOKEN",
+                }
+            ),
+            400,
+        )
     file = request.files.get("file")
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
@@ -188,7 +202,26 @@ def api_upload_markdown():
             return jsonify({"error": "文件名缺失"}), 400
         if not isinstance(content, str):
             return jsonify({"error": "Markdown 内容缺失"}), 400
-
+        if not cnb_repo or not cnb_git_username or not cnb_token:
+            return (
+                jsonify(
+                    {
+                        "error": "Git 配置缺失",
+                        "details": "需要设置 REPO、GIT_USERNAME、TOKEN",
+                    }
+                ),
+                400,
+            )
+        if not remote_url_override and not git_base_url:
+            return (
+                jsonify(
+                    {
+                        "error": "Git 地址配置缺失",
+                        "details": "需要设置 REMOTE_URL 或 GIT_BASE_URL",
+                    }
+                ),
+                400,
+            )
         file_name = safe_markdown_file_name(name)
         temp_root = tempfile.mkdtemp(prefix="md-sync-")
         repo_dir = os.path.join(temp_root, "repo")
@@ -216,6 +249,16 @@ def api_upload_markdown():
             branch = local_branch.stdout.strip() or "main"
 
         normalized_target_dir = normalize_target_dir(markdown_target_dir)
+        if not normalized_target_dir:
+            return (
+                jsonify(
+                    {
+                        "error": "目录配置缺失",
+                        "details": "需要设置 MARKDOWN_TARGET_DIR",
+                    }
+                ),
+                400,
+            )
         target_dir = ensure_directory_tree(repo_dir, normalized_target_dir)
         relative_file_path = posixpath.join(normalized_target_dir, file_name)
 
@@ -270,5 +313,11 @@ def api_upload_markdown():
 
 
 if __name__ == "__main__":
-    port = int(env("PORT", "3000"))
+    port_raw = env("PORT")
+    if not port_raw:
+        raise RuntimeError("PORT 未设置")
+    try:
+        port = int(port_raw)
+    except ValueError as exc:
+        raise RuntimeError("PORT 必须为整数") from exc
     app.run(host="0.0.0.0", port=port)
